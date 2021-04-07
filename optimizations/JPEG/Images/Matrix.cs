@@ -46,20 +46,16 @@ namespace JPEG.Images
                 for(var i = 0; i < bmp.Width; i++)
                 {
                     var pixel = matrix.Pixels[j, i];
-                    bmp.SetPixel(i, j, Color.FromArgb(ToByte(pixel.R), ToByte(pixel.G), ToByte(pixel.B)));
+                    bmp.SetPixel(i, j, Color.FromArgb(pixel.R, pixel.G, pixel.B));
                 }
             }
 
             return bmp;
         }
 
-        public static int ToByte(double d)
+        public static byte ToByte(double d)
         {
-            var val = (int) d;
-            if (val > byte.MaxValue)
-                return byte.MaxValue;
-            if (val < byte.MinValue)
-                return byte.MinValue;
+            var val = (byte) d;
             return val;
         }
     }
