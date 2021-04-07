@@ -7,9 +7,20 @@ namespace JPEG
 	{
 		private int dctSize;
 
+		private double[,] xuCosTable;
+		private double[,] yvCosTable;
+
 		public DCT(int dctSize = 8)
 		{
 			this.dctSize = dctSize;
+
+			xuCosTable = new double[dctSize, dctSize];
+			yvCosTable = new double[dctSize, dctSize];
+
+			MathEx.LoopByTwoVariables(0, dctSize, 0, dctSize, (x, u) =>
+				xuCosTable[x, u] = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2d * dctSize)));
+			MathEx.LoopByTwoVariables(0, dctSize, 0, dctSize, (y, v) =>
+				yvCosTable[y, v] = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2d * dctSize)));
 		}
 		
 		public double[,] DCT2D(double[,] input)
@@ -27,7 +38,7 @@ namespace JPEG
 						.SumByTwoVariables(
 							0, width,
 							0, height,
-							(x, y) => BasisFunction(input[x, y], u, v, x, y, height, width));
+							(x, y) => BasisFunction(input[x, y], u, v, x, y));
 
 					coeffs[u, v] = sum * Beta(height, width) * Alpha(u) * Alpha(v);
 				});
@@ -45,19 +56,19 @@ namespace JPEG
 						.SumByTwoVariables(
 							0, coeffs.GetLength(1),
 							0, coeffs.GetLength(0),
-							(u, v) => BasisFunction(coeffs[u, v], u, v, x, y, coeffs.GetLength(0), coeffs.GetLength(1)) * Alpha(u) * Alpha(v));
+							(u, v) => BasisFunction(coeffs[u, v], u, v, x, y) * Alpha(u) * Alpha(v));
 
 					output[x, y] = sum * Beta(coeffs.GetLength(0), coeffs.GetLength(1));
 				}
 			}
 		}
 
-		public double BasisFunction(double a, double u, double v, double x, double y, int height, int width)
+		public double BasisFunction(double a, int u, int v, int x, int y)
 		{
-			var b = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2 * width));
-			var c = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2 * height));
+			// var b = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2 * width));
+			// var c = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2 * height));
 
-			return a * b * c;
+			return a * xuCosTable[x, u] * yvCosTable[y, v];
 		}
 
 		private double Alpha(int u)
