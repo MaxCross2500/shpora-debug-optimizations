@@ -55,8 +55,8 @@ namespace JPEG
 
 		private static double Alpha(int u)
 		{
-			if(u == 0)
-				return 1 / Math.Sqrt(2);
+			if (u == 0)
+				return 0.7071067811865475;//1 / Math.Sqrt(2);
 			return 1;
 		}
 
