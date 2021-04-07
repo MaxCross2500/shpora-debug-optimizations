@@ -27,9 +27,7 @@ namespace JPEG
 		
 		public double[,] DCT2D(double[,] input)
 		{
-			var height = input.GetLength(0);
-			var width = input.GetLength(1);
-			var coeffs = new double[width, height];
+			var coeffs = new double[dctSize, dctSize];
 
 			for(var u = 0; u < dctSize; u++)
 			for (var v = 0; v < dctSize; v++)
