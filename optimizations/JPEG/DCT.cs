@@ -57,19 +57,8 @@ namespace JPEG
 			}
 		}
 
-		public double BasisFunction(double a, int u, int v, int x, int y)
-		{
-			// var b = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2 * width));
-			// var c = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2 * height));
+		public double BasisFunction(double a, int u, int v, int x, int y) => a * xuCosTable[x, u] * yvCosTable[y, v];
 
-			return a * xuCosTable[x, u] * yvCosTable[y, v];
-		}
-
-		private double Alpha(int u)
-		{
-			if (u == 0)
-				return 0.7071067811865475;//1 / Math.Sqrt(2);
-			return 1;
-		}
+		private double Alpha(int u) => u == 0 ? 0.7071067811865475 : 1;
 	}
 }
