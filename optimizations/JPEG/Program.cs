@@ -6,7 +6,6 @@ using System.IO;
 using System.Diagnostics;
 using JPEG.Images;
 using JPEG.Utilities;
-using PixelFormat = JPEG.Images.PixelFormat;
 
 namespace JPEG
 {
