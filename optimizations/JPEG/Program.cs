@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Diagnostics;
 using JPEG.Images;
+using JPEG.Utilities;
 using PixelFormat = JPEG.Images.PixelFormat;
 
 namespace JPEG
@@ -28,23 +29,31 @@ namespace JPEG
 				using (var bmp = (Bitmap) Image.FromStream(fileStream, false, false))
 				{
 					var imageMatrix = (Matrix) bmp;
-
-					sw.Stop();
-					Console.WriteLine($"{bmp.Width}x{bmp.Height} - {fileStream.Length / (1024.0 * 1024):F2} MB");
-					sw.Start();
+					
+					sw.ReportAndRestart("{1}x{2} - {3:F2} MB loaded in {0}",
+						bmp.Width, bmp.Height, fileStream.Length / (1024.0 * 1024));
 
 					var compressionResult = Compress(imageMatrix, CompressionQuality);
+					sw.ReportAndRestart("Compression: {0} ({1:F2} MB)",
+						compressionResult.BitsCount / (float) (8 * 1024 * 1024));
 					compressionResult.Save(compressedFileName);
+					sw.ReportAndRestart("Saving compressed file");
 				}
 
-				sw.Stop();
-				Console.WriteLine("Compression: " + sw.Elapsed);
-				sw.Restart();
 				var compressedImage = CompressedImage.Load(compressedFileName);
+				sw.ReportAndRestart("Loading compressed file");
+				
 				var uncompressedImage = Uncompress(compressedImage);
+				sw.ReportAndRestart("Decompression");
+				
 				var resultBmp = (Bitmap) uncompressedImage;
+				sw.ReportAndRestart("Converting to bitmap");
+				
 				resultBmp.Save(uncompressedFileName, ImageFormat.Bmp);
-				Console.WriteLine("Decompression: " + sw.Elapsed);
+				sw.ReportAndRestart("Saving decompressed image");
+				Console.WriteLine();
+				sw.Stop();
+				
 				Console.WriteLine($"Peak commit size: {MemoryMeter.PeakPrivateBytes() / (1024.0*1024):F2} MB");
 				Console.WriteLine($"Peak working set: {MemoryMeter.PeakWorkingSet() / (1024.0*1024):F2} MB");
 			}
