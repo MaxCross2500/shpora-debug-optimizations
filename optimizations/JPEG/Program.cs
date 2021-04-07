@@ -113,7 +113,7 @@ namespace JPEG
 						ShiftMatrixValues(channel, 128);
 					}
 
-					SetPixels(result, _y, cb, cr, PixelFormat.YCbCr, y, x);
+					SetPixelsYCbCr(result, _y, cb, cr, y, x);
 				}
 			}
 
@@ -130,14 +130,14 @@ namespace JPEG
 					subMatrix[y, x] = subMatrix[y, x] + shiftValue;
 		}
 
-		private static void SetPixels(Matrix matrix, double[,] a, double[,] b, double[,] c, PixelFormat format, int yOffset, int xOffset)
+		private static void SetPixelsYCbCr(Matrix matrix, double[,] ys, double[,] cbs, double[,] crs, int yOffset, int xOffset)
 		{
-			var height = a.GetLength(0);
-			var width = a.GetLength(1);
+			var height = ys.GetLength(0);
+			var width = ys.GetLength(1);
 
 			for(var y = 0; y < height; y++)
 				for(var x = 0; x < width; x++)
-					matrix.Pixels[yOffset + y, xOffset + x] = new Pixel(a[y, x], b[y, x], c[y, x], format);
+					matrix.Pixels[yOffset + y, xOffset + x] = Pixel.FromYCbCr(ys[y, x], cbs[y, x], crs[y, x]);
 		}
 
 		private static double[,] GetSubMatrix(Matrix matrix, int yOffset, int yLength, int xOffset, int xLength, Func<Pixel, double> componentSelector)
