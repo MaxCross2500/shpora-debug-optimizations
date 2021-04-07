@@ -67,17 +67,23 @@ namespace JPEG
 		{
 			var dct = new DCT(DCTSize);
 			
-			var allQuantizedBytes = new List<byte>();
+			var allQuantizedBytes = new List<byte>(matrix.Height * matrix.Width * 3);
+
+			var quantizationMatrix = GetQuantizationMatrix(quality);
+
+			var subMatrix = new double[DCTSize, DCTSize];
+			var channelFreqs = new double[DCTSize, DCTSize];
+			var quantizedFreqs = new byte[DCTSize, DCTSize];
 
 			for(var y = 0; y < matrix.Height; y += DCTSize)
 			for (var x = 0; x < matrix.Width; x += DCTSize)
 			{
 				foreach (var selector in new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr})
 				{
-					var subMatrix = GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector);
+					GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector, subMatrix);
 					ShiftMatrixValues(subMatrix, -128);
-					var channelFreqs = dct.DCT2D(subMatrix);
-					var quantizedFreqs = Quantize(channelFreqs, quality);
+					dct.DCT2D(subMatrix, channelFreqs);
+					Quantize(channelFreqs, quantizationMatrix, quantizedFreqs);
 					var quantizedBytes = ZigZagScan(quantizedFreqs);
 					allQuantizedBytes.AddRange(quantizedBytes);
 				}
@@ -92,6 +98,15 @@ namespace JPEG
 		{
 			var dct = new DCT(DCTSize);
 			
+			var quantizationMatrix = GetQuantizationMatrix(image.Quality);
+			
+			var quantizedBytes = new byte[DCTSize * DCTSize];
+			var channelFreqs = new double[DCTSize, DCTSize];
+			
+			var ys = new double[DCTSize, DCTSize];
+			var cbs = new double[DCTSize, DCTSize];
+			var crs = new double[DCTSize, DCTSize];
+			
 			var result = new Matrix(image.Height, image.Width);
 			using (var allQuantizedBytes =
 				new MemoryStream(HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount)))
@@ -99,20 +114,16 @@ namespace JPEG
 				for (var y = 0; y < image.Height; y += DCTSize)
 				for (var x = 0; x < image.Width; x += DCTSize)
 				{
-					var _y = new double[DCTSize, DCTSize];
-					var cb = new double[DCTSize, DCTSize];
-					var cr = new double[DCTSize, DCTSize];
-					foreach (var channel in new[] {_y, cb, cr})
+					foreach (var channel in new[] {ys, cbs, crs})
 					{
-						var quantizedBytes = new byte[DCTSize * DCTSize];
 						allQuantizedBytes.ReadAsync(quantizedBytes, 0, quantizedBytes.Length).Wait();
 						var quantizedFreqs = ZigZagUnScan(quantizedBytes);
-						var channelFreqs = DeQuantize(quantizedFreqs, image.Quality);
+						DeQuantize(quantizedFreqs, quantizationMatrix, channelFreqs);
 						dct.IDCT2D(channelFreqs, channel);
 						ShiftMatrixValues(channel, 128);
 					}
 
-					SetPixelsYCbCr(result, _y, cb, cr, y, x);
+					SetPixelsYCbCr(result, ys, cbs, crs, y, x);
 				}
 			}
 
@@ -124,9 +135,9 @@ namespace JPEG
 			var height = subMatrix.GetLength(0);
 			var width = subMatrix.GetLength(1);
 			
-			for(var y = 0; y < height; y++)
-				for(var x = 0; x < width; x++)
-					subMatrix[y, x] = subMatrix[y, x] + shiftValue;
+			for (var y = 0; y < height; y++)
+			for (var x = 0; x < width; x++)
+				subMatrix[y, x] = subMatrix[y, x] + shiftValue;
 		}
 
 		private static void SetPixelsYCbCr(Matrix matrix, double[,] ys, double[,] cbs, double[,] crs, int yOffset, int xOffset)
@@ -134,18 +145,17 @@ namespace JPEG
 			var height = ys.GetLength(0);
 			var width = ys.GetLength(1);
 
-			for(var y = 0; y < height; y++)
-				for(var x = 0; x < width; x++)
-					matrix.Pixels[yOffset + y, xOffset + x] = Pixel.FromYCbCr(ys[y, x], cbs[y, x], crs[y, x]);
+			for (var y = 0; y < height; y++)
+			for (var x = 0; x < width; x++)
+				matrix.Pixels[yOffset + y, xOffset + x] = Pixel.FromYCbCr(ys[y, x], cbs[y, x], crs[y, x]);
 		}
 
-		private static double[,] GetSubMatrix(Matrix matrix, int yOffset, int yLength, int xOffset, int xLength, Func<Pixel, double> componentSelector)
+		private static void GetSubMatrix(Matrix matrix, int yOffset, int yLength, int xOffset, int xLength,
+			Func<Pixel, double> componentSelector, double[,] output)
 		{
-			var result = new double[yLength, xLength];
-			for(var j = 0; j < yLength; j++)
-				for(var i = 0; i < xLength; i++)
-					result[j, i] = componentSelector(matrix.Pixels[yOffset + j, xOffset + i]);
-			return result;
+			for (var j = 0; j < yLength; j++)
+			for (var i = 0; i < xLength; i++)
+				output[j, i] = componentSelector(matrix.Pixels[yOffset + j, xOffset + i]);
 		}
 
 		private static byte[] ZigZagScan(byte[,] channelFreqs)
@@ -178,32 +188,18 @@ namespace JPEG
 			};
 		}
 
-		private static byte[,] Quantize(double[,] channelFreqs, int quality)
+		private static void Quantize(double[,] channelFreqs, int[,] quantizationMatrix, byte[,] output)
 		{
-			var result = new byte[channelFreqs.GetLength(0), channelFreqs.GetLength(1)];
-
-			var quantizationMatrix = GetQuantizationMatrix(quality);
-			for(int y = 0; y < channelFreqs.GetLength(0); y++)
+			for (int y = 0; y < channelFreqs.GetLength(0); y++)
 			for (int x = 0; x < channelFreqs.GetLength(1); x++)
-				result[y, x] = (byte) (channelFreqs[y, x] / quantizationMatrix[y, x]);
-
-			return result;
+				output[y, x] = (byte) (channelFreqs[y, x] / quantizationMatrix[y, x]);
 		}
 
-		private static double[,] DeQuantize(byte[,] quantizedBytes, int quality)
+		private static void DeQuantize(byte[,] quantizedBytes, int[,] quantizationMatrix, double[,] output)
 		{
-			var result = new double[quantizedBytes.GetLength(0), quantizedBytes.GetLength(1)];
-			var quantizationMatrix = GetQuantizationMatrix(quality);
-
-			for(int y = 0; y < quantizedBytes.GetLength(0); y++)
-			{
-				for(int x = 0; x < quantizedBytes.GetLength(1); x++)
-				{
-					result[y, x] = ((sbyte)quantizedBytes[y, x]) * quantizationMatrix[y, x];//NOTE cast to sbyte not to loose negative numbers
-				}
-			}
-
-			return result;
+			for (int y = 0; y < quantizedBytes.GetLength(0); y++)
+			for (int x = 0; x < quantizedBytes.GetLength(1); x++)
+				output[y, x] = ((sbyte) quantizedBytes[y, x]) * quantizationMatrix[y, x]; //NOTE cast to sbyte not to loose negative numbers
 		}
 
 		private static int[,] GetQuantizationMatrix(int quality)
@@ -225,13 +221,10 @@ namespace JPEG
 				{72, 92, 95, 98, 112, 100, 103, 99}
 			};
 
-			for(int y = 0; y < result.GetLength(0); y++)
-			{
-				for(int x = 0; x < result.GetLength(1); x++)
-				{
-					result[y, x] = (multiplier * result[y, x] + 50) / 100;
-				}
-			}
+			for (int y = 0; y < result.GetLength(0); y++)
+			for (int x = 0; x < result.GetLength(1); x++)
+				result[y, x] = (multiplier * result[y, x] + 50) / 100;
+
 			return result;
 		}
 

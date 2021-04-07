@@ -25,10 +25,8 @@ namespace JPEG
 				yvCosTable[y, v] = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2d * dctSize)));
 		}
 		
-		public double[,] DCT2D(double[,] input)
+		public void DCT2D(double[,] input, double[,] output)
 		{
-			var coeffs = new double[dctSize, dctSize];
-
 			for(var u = 0; u < dctSize; u++)
 			for (var v = 0; v < dctSize; v++)
 			{
@@ -37,10 +35,8 @@ namespace JPEG
 				for (var y = 0; y < dctSize; y++)
 					sum += BasisFunction(input[x, y], u, v, x, y);
 
-				coeffs[u, v] = sum * beta * Alpha(u) * Alpha(v);
+				output[u, v] = sum * beta * Alpha(u) * Alpha(v);
 			}
-
-			return coeffs;
 		}
 
 		public void IDCT2D(double[,] coeffs, double[,] output)
