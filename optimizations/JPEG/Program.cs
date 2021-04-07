@@ -149,7 +149,7 @@ namespace JPEG
 			return result;
 		}
 
-		private static IEnumerable<byte> ZigZagScan(byte[,] channelFreqs)
+		private static byte[] ZigZagScan(byte[,] channelFreqs)
 		{
 			return new[]
 			{
