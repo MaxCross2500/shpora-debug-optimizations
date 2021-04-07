@@ -28,10 +28,11 @@ namespace JPEG
 				using (var fileStream = File.OpenRead(fileName))
 				using (var bmp = (Bitmap) Image.FromStream(fileStream, false, false))
 				{
-					var imageMatrix = (Matrix) bmp;
-					
 					sw.ReportAndRestart("{1}x{2} - {3:F2} MB loaded in {0}",
 						bmp.Width, bmp.Height, fileStream.Length / (1024.0 * 1024));
+					
+					var imageMatrix = (Matrix) bmp;
+					sw.ReportAndRestart("Converting to matrix");
 
 					var compressionResult = Compress(imageMatrix, CompressionQuality);
 					sw.ReportAndRestart("Compression: {0} ({1:F2} MB)",
