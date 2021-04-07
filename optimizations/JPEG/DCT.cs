@@ -6,6 +6,7 @@ namespace JPEG
 	public class DCT
 	{
 		private int dctSize;
+		private double beta;
 
 		private double[,] xuCosTable;
 		private double[,] yvCosTable;
@@ -13,6 +14,7 @@ namespace JPEG
 		public DCT(int dctSize = 8)
 		{
 			this.dctSize = dctSize;
+			beta = 1d / dctSize + 1d / dctSize;
 
 			xuCosTable = new double[dctSize, dctSize];
 			yvCosTable = new double[dctSize, dctSize];
@@ -40,7 +42,7 @@ namespace JPEG
 							0, height,
 							(x, y) => BasisFunction(input[x, y], u, v, x, y));
 
-					coeffs[u, v] = sum * Beta(height, width) * Alpha(u) * Alpha(v);
+					coeffs[u, v] = sum * beta * Alpha(u) * Alpha(v);
 				});
 			
 			return coeffs;
@@ -58,7 +60,7 @@ namespace JPEG
 							0, coeffs.GetLength(0),
 							(u, v) => BasisFunction(coeffs[u, v], u, v, x, y) * Alpha(u) * Alpha(v));
 
-					output[x, y] = sum * Beta(coeffs.GetLength(0), coeffs.GetLength(1));
+					output[x, y] = sum * beta;
 				}
 			}
 		}
@@ -76,11 +78,6 @@ namespace JPEG
 			if (u == 0)
 				return 0.7071067811865475;//1 / Math.Sqrt(2);
 			return 1;
-		}
-
-		private double Beta(int height, int width)
-		{
-			return 1d / width + 1d / height;
 		}
 	}
 }
