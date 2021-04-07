@@ -66,6 +66,8 @@ namespace JPEG
 
 		private static CompressedImage Compress(Matrix matrix, int quality = 50)
 		{
+			var dct = new DCT(DCTSize);
+			
 			var allQuantizedBytes = new List<byte>();
 
 			for(var y = 0; y < matrix.Height; y += DCTSize)
@@ -76,7 +78,7 @@ namespace JPEG
 					{
 						var subMatrix = GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector);
 						ShiftMatrixValues(subMatrix, -128);
-						var channelFreqs = DCT.DCT2D(subMatrix);
+						var channelFreqs = dct.DCT2D(subMatrix);
 						var quantizedFreqs = Quantize(channelFreqs, quality);
 						var quantizedBytes = ZigZagScan(quantizedFreqs);
 						allQuantizedBytes.AddRange(quantizedBytes);
@@ -93,6 +95,8 @@ namespace JPEG
 		
 		private static Matrix Uncompress(CompressedImage image)
 		{
+			var dct = new DCT(DCTSize);
+			
 			var result = new Matrix(image.Height, image.Width);
 			using (var allQuantizedBytes =
 				new MemoryStream(HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount)))
@@ -110,7 +114,7 @@ namespace JPEG
 							allQuantizedBytes.ReadAsync(quantizedBytes, 0, quantizedBytes.Length).Wait();
 							var quantizedFreqs = ZigZagUnScan(quantizedBytes);
 							var channelFreqs = DeQuantize(quantizedFreqs, image.Quality);
-							DCT.IDCT2D(channelFreqs, channel);
+							dct.IDCT2D(channelFreqs, channel);
 							ShiftMatrixValues(channel, 128);
 						}
 						SetPixels(result, _y, cb, cr, PixelFormat.YCbCr, y, x);
