@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace JPEG.Images
 {
+    [StructLayout(LayoutKind.Sequential, Pack = 0)]
     public struct Pixel
     {
         public static Pixel FromRGB(byte r, byte g, byte b) => new Pixel {R = r, G = g, B = b};
