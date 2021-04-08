@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using JPEG.Images;
 using JPEG.Utilities;
 
@@ -68,29 +69,29 @@ namespace JPEG
 			var dct = new DCT(DCTSize);
 			
 			var allQuantizedBytes = new byte[matrix.Height * matrix.Width * 3];
-
 			var quantizationMatrix = GetQuantizationMatrix(quality);
-
-			var subMatrix = new double[DCTSize, DCTSize];
-			var channelFreqs = new double[DCTSize, DCTSize];
-			var quantizedFreqs = new byte[DCTSize, DCTSize];
-
 			var selectors = new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr};
 
-			for(var y = 0; y < matrix.Height / DCTSize; y++)
-			for (var x = 0; x < matrix.Width / DCTSize; x++)
-			for (var i = 0; i < selectors.Length; i++)
+			Parallel.For(0, matrix.Height / DCTSize, y =>
 			{
-				GetSubMatrix(matrix, y * DCTSize, DCTSize, x * DCTSize, DCTSize, selectors[i], subMatrix);
-				ShiftMatrixValues(subMatrix, -128);
-				dct.DCT2D(subMatrix, channelFreqs);
-				Quantize(channelFreqs, quantizationMatrix, quantizedFreqs);
-				// var oy = y / DCTSize;
-				// var ox = x / DCTSize;
-				// var offset = oy * matrix.Width / DCTSize * DCTSize * DCTSize * 3 + ox * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
-				var offset = y * DCTSize * matrix.Width * 3 + x * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
-				ZigZagScan(quantizedFreqs, allQuantizedBytes, offset);
-			}
+				var subMatrix = new double[DCTSize, DCTSize];
+				var channelFreqs = new double[DCTSize, DCTSize];
+				var quantizedFreqs = new byte[DCTSize, DCTSize];
+				
+				for (var x = 0; x < matrix.Width / DCTSize; x++)
+				for (var i = 0; i < selectors.Length; i++)
+				{
+					GetSubMatrix(matrix, y * DCTSize, DCTSize, x * DCTSize, DCTSize, selectors[i], subMatrix);
+					ShiftMatrixValues(subMatrix, -128);
+					dct.DCT2D(subMatrix, channelFreqs);
+					Quantize(channelFreqs, quantizationMatrix, quantizedFreqs);
+					// var oy = y / DCTSize;
+					// var ox = x / DCTSize;
+					// var offset = oy * matrix.Width / DCTSize * DCTSize * DCTSize * 3 + ox * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
+					var offset = y * DCTSize * matrix.Width * 3 + x * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
+					ZigZagScan(quantizedFreqs, allQuantizedBytes, offset);
+				}
+			});
 
 			var compressedBytes = HuffmanCodec.Encode(allQuantizedBytes, out var decodeTable, out var bitsCount);
 
@@ -103,32 +104,33 @@ namespace JPEG
 
 			var allQuantizedBytes = HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount);
 			var quantizationMatrix = GetQuantizationMatrix(image.Quality);
-			
-			// var quantizedBytes = new byte[DCTSize * DCTSize];
-			var quantizedFreqs = new byte[DCTSize, DCTSize];
-			var channelFreqs = new double[DCTSize, DCTSize];
-			
-			var ys = new double[DCTSize, DCTSize];
-			var cbs = new double[DCTSize, DCTSize];
-			var crs = new double[DCTSize, DCTSize];
 
-			var channels = new[] {ys, cbs, crs};
-			
 			var result = new Matrix(image.Height, image.Width);
-			for (var y = 0; y < image.Height / DCTSize; y++)
-			for (var x = 0; x < image.Width / DCTSize; x++)
+			Parallel.For(0, image.Height / DCTSize, y =>
 			{
-				for (var i = 0; i < channels.Length; i++)
-				{
-					var offset = y * DCTSize * image.Width * 3 + x * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
-					ZigZagUnScan(allQuantizedBytes, quantizedFreqs, offset);
-					DeQuantize(quantizedFreqs, quantizationMatrix, channelFreqs);
-					dct.IDCT2D(channelFreqs, channels[i]);
-					ShiftMatrixValues(channels[i], 128);
-				}
+				var quantizedFreqs = new byte[DCTSize, DCTSize];
+				var channelFreqs = new double[DCTSize, DCTSize];
+			
+				var ys = new double[DCTSize, DCTSize];
+				var cbs = new double[DCTSize, DCTSize];
+				var crs = new double[DCTSize, DCTSize];
 
-				SetPixelsYCbCr(result, ys, cbs, crs, y * DCTSize, x * DCTSize);
-			}
+				var channels = new[] {ys, cbs, crs};
+				
+				for (var x = 0; x < image.Width / DCTSize; x++)
+				{
+					for (var i = 0; i < channels.Length; i++)
+					{
+						var offset = y * DCTSize * image.Width * 3 + x * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
+						ZigZagUnScan(allQuantizedBytes, quantizedFreqs, offset);
+						DeQuantize(quantizedFreqs, quantizationMatrix, channelFreqs);
+						dct.IDCT2D(channelFreqs, channels[i]);
+						ShiftMatrixValues(channels[i], 128);
+					}
+
+					SetPixelsYCbCr(result, ys, cbs, crs, y * DCTSize, x * DCTSize);
+				}
+			});
 
 			return result;
 		}
