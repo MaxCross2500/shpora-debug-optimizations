@@ -104,11 +104,14 @@ namespace JPEG
 			var quantizationMatrix = GetQuantizationMatrix(image.Quality);
 			
 			var quantizedBytes = new byte[DCTSize * DCTSize];
+			var quantizedFreqs = new byte[DCTSize, DCTSize];
 			var channelFreqs = new double[DCTSize, DCTSize];
 			
 			var ys = new double[DCTSize, DCTSize];
 			var cbs = new double[DCTSize, DCTSize];
 			var crs = new double[DCTSize, DCTSize];
+
+			var channels = new[] {ys, cbs, crs};
 			
 			var result = new Matrix(image.Height, image.Width);
 			using (var allQuantizedBytes =
@@ -117,10 +120,10 @@ namespace JPEG
 				for (var y = 0; y < image.Height; y += DCTSize)
 				for (var x = 0; x < image.Width; x += DCTSize)
 				{
-					foreach (var channel in new[] {ys, cbs, crs})
+					foreach (var channel in channels)
 					{
 						allQuantizedBytes.ReadAsync(quantizedBytes, 0, quantizedBytes.Length).Wait();
-						var quantizedFreqs = ZigZagUnScan(quantizedBytes);
+						ZigZagUnScan(quantizedBytes, quantizedFreqs);
 						DeQuantize(quantizedFreqs, quantizationMatrix, channelFreqs);
 						dct.IDCT2D(channelFreqs, channel);
 						ShiftMatrixValues(channel, 128);
@@ -179,19 +182,23 @@ namespace JPEG
 				quantizedBytes[offset + y * DCTSize + x] = channelFreqs[ZigZagScanTable[y, x].first, ZigZagScanTable[y, x].second];
 		}
 
-		private static byte[,] ZigZagUnScan(IReadOnlyList<byte> quantizedBytes)
+		private static readonly int[,] ZigZagUnScanTable =
 		{
-			return new[,]
-			{
-				{ quantizedBytes[0], quantizedBytes[1], quantizedBytes[5], quantizedBytes[6], quantizedBytes[14], quantizedBytes[15], quantizedBytes[27], quantizedBytes[28] },
-				{ quantizedBytes[2], quantizedBytes[4], quantizedBytes[7], quantizedBytes[13], quantizedBytes[16], quantizedBytes[26], quantizedBytes[29], quantizedBytes[42] },
-				{ quantizedBytes[3], quantizedBytes[8], quantizedBytes[12], quantizedBytes[17], quantizedBytes[25], quantizedBytes[30], quantizedBytes[41], quantizedBytes[43] },
-				{ quantizedBytes[9], quantizedBytes[11], quantizedBytes[18], quantizedBytes[24], quantizedBytes[31], quantizedBytes[40], quantizedBytes[44], quantizedBytes[53] },
-				{ quantizedBytes[10], quantizedBytes[19], quantizedBytes[23], quantizedBytes[32], quantizedBytes[39], quantizedBytes[45], quantizedBytes[52], quantizedBytes[54] },
-				{ quantizedBytes[20], quantizedBytes[22], quantizedBytes[33], quantizedBytes[38], quantizedBytes[46], quantizedBytes[51], quantizedBytes[55], quantizedBytes[60] },
-				{ quantizedBytes[21], quantizedBytes[34], quantizedBytes[37], quantizedBytes[47], quantizedBytes[50], quantizedBytes[56], quantizedBytes[59], quantizedBytes[61] },
-				{ quantizedBytes[35], quantizedBytes[36], quantizedBytes[48], quantizedBytes[49], quantizedBytes[57], quantizedBytes[58], quantizedBytes[62], quantizedBytes[63] }
-			};
+			{0, 1, 5, 6, 14, 15, 27, 28},
+			{2, 4, 7, 13, 16, 26, 29, 42},
+			{3, 8, 12, 17, 25, 30, 41, 43},
+			{9, 11, 18, 24, 31, 40, 44, 53},
+			{10, 19, 23, 32, 39, 45, 52, 54},
+			{20, 22, 33, 38, 46, 51, 55, 60},
+			{21, 34, 37, 47, 50, 56, 59, 61},
+			{35, 36, 48, 49, 57, 58, 62, 63},
+		};
+
+		private static void ZigZagUnScan(byte[] quantizedBytes, byte[,] quantizedFreqs)
+		{
+			for (var y = 0; y < DCTSize; y++)
+			for (var x = 0; x < DCTSize; x++)
+				quantizedFreqs[y, x] = quantizedBytes[ZigZagUnScanTable[y, x]];
 		}
 
 		private static void Quantize(double[,] channelFreqs, int[,] quantizationMatrix, byte[,] output)
