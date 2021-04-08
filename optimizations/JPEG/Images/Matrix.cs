@@ -73,7 +73,7 @@ namespace JPEG.Images
             for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
-                var curPtr = pixelsData + (y * width + x) * 3;
+                var curPtr = pixelsData + y * bmpData.Stride + x * 3;
                 matrix.Pixels[y, x] = Pixel.FromRGB(curPtr[2], curPtr[1], curPtr[0]);
             }
             
@@ -91,7 +91,7 @@ namespace JPEG.Images
             for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
             {
-                var curPtr = pixelsData + (y * Width + x) * 3;
+                var curPtr = pixelsData + y * bmpData.Stride + x * 3;
                 var pixel = Pixels[y, x];
                 curPtr[2] = pixel.R;
                 curPtr[1] = pixel.G;
