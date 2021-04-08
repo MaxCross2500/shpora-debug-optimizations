@@ -67,7 +67,7 @@ namespace JPEG
 		{
 			var dct = new DCT(DCTSize);
 			
-			var allQuantizedBytes = new List<byte>(matrix.Height * matrix.Width * 3);
+			var allQuantizedBytes = new byte[matrix.Height * matrix.Width * 3];
 
 			var quantizationMatrix = GetQuantizationMatrix(quality);
 
@@ -75,18 +75,21 @@ namespace JPEG
 			var channelFreqs = new double[DCTSize, DCTSize];
 			var quantizedFreqs = new byte[DCTSize, DCTSize];
 
+			var selectors = new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr};
+
 			for(var y = 0; y < matrix.Height; y += DCTSize)
 			for (var x = 0; x < matrix.Width; x += DCTSize)
+			for (var i = 0; i < selectors.Length; i++)
 			{
-				foreach (var selector in new Func<Pixel, double>[] {p => p.Y, p => p.Cb, p => p.Cr})
-				{
-					GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector, subMatrix);
-					ShiftMatrixValues(subMatrix, -128);
-					dct.DCT2D(subMatrix, channelFreqs);
-					Quantize(channelFreqs, quantizationMatrix, quantizedFreqs);
-					var quantizedBytes = ZigZagScan(quantizedFreqs);
-					allQuantizedBytes.AddRange(quantizedBytes);
-				}
+				GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selectors[i], subMatrix);
+				ShiftMatrixValues(subMatrix, -128);
+				dct.DCT2D(subMatrix, channelFreqs);
+				Quantize(channelFreqs, quantizationMatrix, quantizedFreqs);
+				// var oy = y / DCTSize;
+				// var ox = x / DCTSize;
+				// var offset = oy * matrix.Width / DCTSize * DCTSize * DCTSize * 3 + ox * DCTSize * DCTSize * 3 + i * DCTSize * DCTSize;
+				var offset = y * matrix.Width * 3 + x * DCTSize * 3 + i * DCTSize * DCTSize;
+				ZigZagScan(quantizedFreqs, allQuantizedBytes, offset);
 			}
 
 			var compressedBytes = HuffmanCodec.Encode(allQuantizedBytes, out var decodeTable, out var bitsCount);
@@ -157,20 +160,23 @@ namespace JPEG
 			for (var i = 0; i < xLength; i++)
 				output[j, i] = componentSelector(matrix.Pixels[yOffset + j, xOffset + i]);
 		}
+		
+		private static readonly (int first, int second)[,] ZigZagScanTable = {
+			{(0, 0), (0, 1), (1, 0), (2, 0), (1, 1), (0, 2), (0, 3), (1, 2)},
+			{(2, 1), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (0, 5)},
+			{(1, 4), (2, 3), (3, 2), (4, 1), (5, 0), (6, 0), (5, 1), (4, 2)},
+			{(3, 3), (2, 4), (1, 5), (0, 6), (0, 7), (1, 6), (2, 5), (3, 4)},
+			{(4, 3), (5, 2), (6, 1), (7, 0), (7, 1), (6, 2), (5, 3), (4, 4)},
+			{(5, 3), (2, 6), (1, 7), (2, 7), (3, 6), (4, 5), (5, 4), (6, 3)},
+			{(7, 2), (7, 3), (6, 4), (5, 5), (4, 6), (3, 7), (4, 7), (5, 6)},
+			{(6, 5), (7, 4), (7, 5), (6, 6), (5, 7), (6, 7), (7, 6), (7, 7)},
+		};
 
-		private static byte[] ZigZagScan(byte[,] channelFreqs)
+		private static void ZigZagScan(byte[,] channelFreqs, byte[] quantizedBytes, int offset)
 		{
-			return new[]
-			{
-				channelFreqs[0, 0], channelFreqs[0, 1], channelFreqs[1, 0], channelFreqs[2, 0], channelFreqs[1, 1], channelFreqs[0, 2], channelFreqs[0, 3], channelFreqs[1, 2],
-				channelFreqs[2, 1], channelFreqs[3, 0], channelFreqs[4, 0], channelFreqs[3, 1], channelFreqs[2, 2], channelFreqs[1, 3],  channelFreqs[0, 4], channelFreqs[0, 5],
-				channelFreqs[1, 4], channelFreqs[2, 3], channelFreqs[3, 2], channelFreqs[4, 1], channelFreqs[5, 0], channelFreqs[6, 0], channelFreqs[5, 1], channelFreqs[4, 2],
-				channelFreqs[3, 3], channelFreqs[2, 4], channelFreqs[1, 5],  channelFreqs[0, 6], channelFreqs[0, 7], channelFreqs[1, 6], channelFreqs[2, 5], channelFreqs[3, 4],
-				channelFreqs[4, 3], channelFreqs[5, 2], channelFreqs[6, 1], channelFreqs[7, 0], channelFreqs[7, 1], channelFreqs[6, 2], channelFreqs[5, 3], channelFreqs[4, 4],
-				channelFreqs[3, 5], channelFreqs[2, 6], channelFreqs[1, 7], channelFreqs[2, 7], channelFreqs[3, 6], channelFreqs[4, 5], channelFreqs[5, 4], channelFreqs[6, 3],
-				channelFreqs[7, 2], channelFreqs[7, 3], channelFreqs[6, 4], channelFreqs[5, 5], channelFreqs[4, 6], channelFreqs[3, 7], channelFreqs[4, 7], channelFreqs[5, 6],
-				channelFreqs[6, 5], channelFreqs[7, 4], channelFreqs[7, 5], channelFreqs[6, 6], channelFreqs[5, 7], channelFreqs[6, 7], channelFreqs[7, 6], channelFreqs[7, 7]
-			};
+			for (var y = 0; y < DCTSize; y++)
+			for (var x = 0; x < DCTSize; x++)
+				quantizedBytes[offset + y * DCTSize + x] = channelFreqs[ZigZagScanTable[y, x].first, ZigZagScanTable[y, x].second];
 		}
 
 		private static byte[,] ZigZagUnScan(IReadOnlyList<byte> quantizedBytes)
